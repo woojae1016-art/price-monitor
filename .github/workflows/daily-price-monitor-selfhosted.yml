@@ -1,0 +1,51 @@
+name: Daily Price Monitor Self Hosted
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * *'   # KST 06:00 = UTC 21:00
+
+jobs:
+  run-price-monitor:
+    runs-on: self-hosted
+
+    env:
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+      ENABLE_VBA: "false"
+      OPEN_FILE_AFTER_RUN: "false"
+      DEBUG_CRAWLER: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Show repository files
+        run: |
+          pwd
+          ls -la
+
+      - name: Run price monitor
+        run: python price_monitor_step1_cloud.py
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-monitor-result-selfhosted-${{ github.run_number }}
+          path: |
+            *.xlsx
+            *.xlsm
+          if-no-files-found: error
