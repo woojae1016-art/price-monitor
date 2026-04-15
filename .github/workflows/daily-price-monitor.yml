@@ -1,0 +1,48 @@
+name: Daily Price Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * *'   # 한국시간 09:00 = UTC 00:00
+
+jobs:
+  run-price-monitor:
+    runs-on: ubuntu-latest
+
+    env:
+      NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+      NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+      ENABLE_VBA: "false"
+      OPEN_FILE_AFTER_RUN: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Show repository files
+        run: ls -la
+
+      - name: Run price monitor
+        run: python price_monitor_step1_cloud.py
+
+      - name: Upload result artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: price-monitor-result-${{ github.run_number }}
+          path: |
+            *.xlsx
+            *.xlsm
+          if-no-files-found: error
