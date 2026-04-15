@@ -271,7 +271,10 @@ def enrich_items_with_seller(items):
             items[item_i]["real_seller"] = mall
             items[item_i]["real_price"] = lprice
 
-        time.sleep(1.5)
+        delay = random.uniform(5, 8)
+        if _DEBUG:
+            print(f"      [sleep] {delay:.1f}s")
+        time.sleep(delay)
 
     print("  [2단계] 완료\n")
     return items
