@@ -17,6 +17,7 @@ jobs:
       EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
       ENABLE_VBA: "false"
       OPEN_FILE_AFTER_RUN: "false"
+      DEBUG_CRAWLER: "true"
 
     steps:
       - name: Checkout
