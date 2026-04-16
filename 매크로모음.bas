@@ -417,3 +417,331 @@ Done:
     Application.ScreenUpdating = True
     MsgBox "테두리 적용 완료!", vbInformation
 End Sub
+
+' =============================================
+' 4. 쿠팡 판매자 빠른 입력 - 공통 처리 함수
+'    Ctrl+Shift+1 → 오아시스 펌프
+'    Ctrl+Shift+2 → 서울종합펌프
+'    Ctrl+Shift+3 → 펌프샵
+' =============================================
+Sub ApplySeller(sellerName As String)
+    Dim wsResult  As Worksheet
+    Dim wsMk      As Worksheet
+    Dim curRow    As Long
+    Dim modelName As String
+    Dim lprice    As Variant
+    Dim msrp      As Variant
+    Dim dc        As Variant
+    Dim link      As String
+
+    If ActiveSheet.Name <> "오픈마켓확인" Then
+        MsgBox "오픈마켓확인 시트에서 실행해주세요.", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsMk = ActiveSheet
+    curRow   = ActiveCell.Row
+    If curRow <= 1 Then Exit Sub
+
+    modelName = Trim(wsMk.Cells(curRow, 2).Value)
+    lprice    = wsMk.Cells(curRow, 4).Value
+    msrp      = wsMk.Cells(curRow, 5).Value
+    dc        = wsMk.Cells(curRow, 6).Value
+    link      = wsMk.Cells(curRow, 8).Value
+
+    If modelName = "" Then Exit Sub
+
+    ' 오픈마켓확인 G열에 판매자 입력 + 연초록 배경
+    wsMk.Cells(curRow, 7).Value = sellerName
+    wsMk.Cells(curRow, 7).Interior.Color = RGB(204, 255, 204)
+
+    ' 통합결과 시트에서 모델행 + 판매처열 찾기
+    On Error Resume Next
+    Set wsResult = ThisWorkbook.Sheets("통합결과")
+    On Error GoTo 0
+    If wsResult Is Nothing Then Exit Sub
+
+    Dim modelRow  As Long
+    Dim sellerCol As Long
+    Dim sr As Long, sc As Long
+
+    modelRow  = 0
+    sellerCol = 0
+
+    For sr = 3 To wsResult.Cells(wsResult.Rows.Count, 1).End(xlUp).Row
+        If Trim(wsResult.Cells(sr, 1).Value) = modelName Then
+            modelRow = sr
+            Exit For
+        End If
+    Next sr
+
+    For sc = 3 To wsResult.Cells(1, wsResult.Columns.Count).End(xlToLeft).Column
+        If Trim(wsResult.Cells(1, sc).Value) = sellerName Then
+            sellerCol = sc
+            Exit For
+        End If
+    Next sc
+
+    If modelRow = 0 Or sellerCol = 0 Then
+        ' 통합결과에 없어도 오픈마켓확인엔 이미 입력됨 - 다음 행으로 이동
+        GoTo MoveNext
+    End If
+
+    ' 기존 값보다 낮을 때만 덮어쓰기
+    Dim existVal As Variant
+    existVal = wsResult.Cells(modelRow, sellerCol).Value
+    If IsNumeric(existVal) And existVal > 0 Then
+        If IsNumeric(lprice) And lprice >= existVal Then GoTo MoveNext
+    End If
+
+    ' 최저가 + 하이퍼링크
+    With wsResult.Cells(modelRow, sellerCol)
+        .Value = lprice
+        .NumberFormat = "#,##0"
+        .HorizontalAlignment = xlRight
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThin
+        If link <> "" Then
+            wsResult.Hyperlinks.Add Anchor:=wsResult.Cells(modelRow, sellerCol), _
+                Address:=link, TextToDisplay:=Format(lprice, "#,##0")
+            .Font.Color = RGB(5, 99, 193)
+            .Font.Underline = xlUnderlineStyleSingle
+        End If
+    End With
+
+    ' 인터넷 권장가
+    With wsResult.Cells(modelRow + 1, sellerCol)
+        .Value = msrp
+        .NumberFormat = "#,##0"
+        .HorizontalAlignment = xlRight
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThin
+    End With
+
+    ' DC율 + 색상
+    With wsResult.Cells(modelRow + 2, sellerCol)
+        If IsNumeric(dc) Then
+            Dim dcPct As Double
+            dcPct = IIf(dc > 1, dc / 100, dc)
+            .Value = dcPct
+            .NumberFormat = "0.0%"
+            Select Case dcPct * 100
+                Case Is >= 25: .Interior.Color = RGB(255, 1, 1)
+                Case Is >= 22: .Interior.Color = RGB(255, 150, 150)
+                Case Is >= 20: .Interior.Color = RGB(255, 150, 1)
+                Case Is >= 17: .Interior.Color = RGB(255, 255, 1)
+            End Select
+        End If
+        .HorizontalAlignment = xlCenter
+        .Borders.LineStyle = xlContinuous
+        .Borders.Weight = xlThin
+    End With
+
+MoveNext:
+    ' 다음 행으로 자동 이동
+    Dim lastRow As Long
+    lastRow = wsMk.Cells(wsMk.Rows.Count, 1).End(xlUp).Row
+    If curRow + 1 <= lastRow Then
+        wsMk.Cells(curRow + 1, 1).Select
+    End If
+End Sub
+
+' Ctrl+Shift+1 → 오아시스 펌프
+Sub Seller_1()
+    Call ApplySeller("오아시스 펌프")
+End Sub
+
+' Ctrl+Shift+2 → 서울종합펌프
+Sub Seller_2()
+    Call ApplySeller("서울종합펌프")
+End Sub
+
+' Ctrl+Shift+3 → 펌프샵
+Sub Seller_3()
+    Call ApplySeller("펌프샵")
+End Sub
+
+' Ctrl+Shift+4 → 윈디샵
+Sub Seller_4()
+    Call ApplySeller("윈디샵")
+End Sub
+
+' Ctrl+Shift+5 → 직접 입력
+Sub Seller_Custom()
+    Dim name As String
+    name = InputBox("판매자명 입력:", "직접 입력")
+    If name <> "" Then Call ApplySeller(name)
+End Sub
+
+' ── 단축키 등록 (파일 열릴 때 자동 실행) ──────
+Sub Auto_Open()
+    ' 오픈마켓확인 시트 단축키 (Ctrl+Shift+1~5)
+    Application.OnKey "^+1", "Seller_1"
+    Application.OnKey "^+2", "Seller_2"
+    Application.OnKey "^+3", "Seller_3"
+    Application.OnKey "^+4", "Seller_4"
+    Application.OnKey "^+5", "Seller_Custom"
+    ' 통합결과 시트 단축키 (Ctrl+Shift+Q~T)
+    Application.OnKey "^+q", "Result_1"
+    Application.OnKey "^+w", "Result_2"
+    Application.OnKey "^+e", "Result_3"
+    Application.OnKey "^+r", "Result_4"
+    Application.OnKey "^+t", "Result_Custom"
+End Sub
+
+' =============================================
+' 5. 통합결과 시트에서 선택 범위의 판매자 열 변경
+'    선택한 셀들의 판매처(1행)를 지정 판매자로 일괄 변경
+'    Ctrl+Shift+Q → 오아시스 펌프
+'    Ctrl+Shift+W → 서울종합펌프
+'    Ctrl+Shift+E → 펌프샵
+'    Ctrl+Shift+R → 윈디샵
+'    Ctrl+Shift+T → 직접 입력
+' =============================================
+Sub ApplySellerToResult(sellerName As String)
+    Dim wsResult As Worksheet
+    Dim sel      As Range
+    Dim cell     As Range
+    Dim sellerCol As Long
+    Dim sc       As Long
+    Dim lastCol  As Long
+    Dim newCol   As Long
+
+    If ActiveSheet.Name <> "통합결과" Then
+        MsgBox "통합결과 시트에서 실행해주세요.", vbExclamation
+        Exit Sub
+    End If
+
+    Set wsResult = ActiveSheet
+    Set sel = Selection
+
+    If sel Is Nothing Then Exit Sub
+
+    ' 변경할 판매자 열 찾기 (1행에서 sellerName 검색)
+    lastCol  = wsResult.Cells(1, wsResult.Columns.Count).End(xlToLeft).Column
+    sellerCol = 0
+    For sc = 3 To lastCol
+        If Trim(wsResult.Cells(1, sc).Value) = sellerName Then
+            sellerCol = sc
+            Exit For
+        End If
+    Next sc
+
+    If sellerCol = 0 Then
+        MsgBox "'" & sellerName & "' 판매처를 통합결과 1행에서 찾을 수 없습니다.", vbExclamation
+        Exit Sub
+    End If
+
+    ' 선택 범위의 각 셀을 처리
+    Dim movedCount As Long
+    movedCount = 0
+
+    For Each cell In sel
+        Dim r As Long
+        r = cell.Row
+
+        ' 유효한 데이터 행인지 확인 (값 있고, 3행 이상)
+        If r >= 3 And IsNumeric(cell.Value) And cell.Value > 0 Then
+            Dim srcCol As Long
+            srcCol = cell.Column
+
+            ' 같은 열이면 건너뜀
+            If srcCol = sellerCol Then GoTo NextCell
+
+            ' 기존 값 읽기
+            Dim lprice As Variant
+            Dim msrp   As Variant
+            Dim dc     As Variant
+            Dim link   As String
+
+            ' 최저가 행인지 판단 (3, 6, 9... → (r-3) mod 3 = 0)
+            Dim baseRow As Long
+            baseRow = r - ((r - 3) Mod 3)  ' 해당 모델의 최저가 행
+
+            lprice = wsResult.Cells(baseRow,     srcCol).Value
+            msrp   = wsResult.Cells(baseRow + 1, srcCol).Value
+            dc     = wsResult.Cells(baseRow + 2, srcCol).Value
+
+            ' 하이퍼링크 추출
+            link = ""
+            If wsResult.Cells(baseRow, srcCol).Hyperlinks.Count > 0 Then
+                link = wsResult.Cells(baseRow, srcCol).Hyperlinks(1).Address
+            End If
+
+            If Not IsNumeric(lprice) Or lprice <= 0 Then GoTo NextCell
+
+            ' 대상 열 기존값 확인 (낮을 때만 덮어쓰기)
+            Dim existVal As Variant
+            existVal = wsResult.Cells(baseRow, sellerCol).Value
+            If IsNumeric(existVal) And existVal > 0 Then
+                If lprice >= existVal Then GoTo NextCell
+            End If
+
+            ' 원본 셀 지우기
+            wsResult.Cells(baseRow,     srcCol).ClearContents
+            wsResult.Cells(baseRow + 1, srcCol).ClearContents
+            wsResult.Cells(baseRow + 2, srcCol).ClearContents
+            wsResult.Cells(baseRow + 2, srcCol).Interior.ColorIndex = xlNone
+
+            ' 대상 열에 입력
+            With wsResult.Cells(baseRow, sellerCol)
+                .Value = lprice
+                .NumberFormat = "#,##0"
+                .HorizontalAlignment = xlRight
+                .Borders.LineStyle = xlContinuous
+                .Borders.Weight = xlThin
+                If link <> "" Then
+                    wsResult.Hyperlinks.Add Anchor:=wsResult.Cells(baseRow, sellerCol), _
+                        Address:=link, TextToDisplay:=Format(lprice, "#,##0")
+                    .Font.Color = RGB(5, 99, 193)
+                    .Font.Underline = xlUnderlineStyleSingle
+                End If
+            End With
+
+            With wsResult.Cells(baseRow + 1, sellerCol)
+                .Value = msrp
+                .NumberFormat = "#,##0"
+                .HorizontalAlignment = xlRight
+                .Borders.LineStyle = xlContinuous
+                .Borders.Weight = xlThin
+            End With
+
+            With wsResult.Cells(baseRow + 2, sellerCol)
+                If IsNumeric(dc) Then
+                    Dim dcPct As Double
+                    dcPct = IIf(dc > 1, dc / 100, dc)
+                    .Value = dcPct
+                    .NumberFormat = "0.0%"
+                    Select Case dcPct * 100
+                        Case Is >= 25: .Interior.Color = RGB(255, 1, 1)
+                        Case Is >= 22: .Interior.Color = RGB(255, 150, 150)
+                        Case Is >= 20: .Interior.Color = RGB(255, 150, 1)
+                        Case Is >= 17: .Interior.Color = RGB(255, 255, 1)
+                    End Select
+                End If
+                .HorizontalAlignment = xlCenter
+                .Borders.LineStyle = xlContinuous
+                .Borders.Weight = xlThin
+            End With
+
+            movedCount = movedCount + 1
+        End If
+NextCell:
+    Next cell
+
+    If movedCount > 0 Then
+        MsgBox movedCount & "개 항목을 '" & sellerName & "' 열로 이동했습니다.", vbInformation
+    Else
+        MsgBox "이동할 항목이 없습니다." & vbCrLf & "(이미 같은 열이거나 기존값이 더 낮음)", vbInformation
+    End If
+End Sub
+
+Sub Result_1(): Call ApplySellerToResult("오아시스 펌프"): End Sub
+Sub Result_2(): Call ApplySellerToResult("서울종합펌프"): End Sub
+Sub Result_3(): Call ApplySellerToResult("펌프샵"): End Sub
+Sub Result_4(): Call ApplySellerToResult("윈디샵"): End Sub
+Sub Result_Custom()
+    Dim name As String
+    name = InputBox("이동할 판매처명 입력:", "직접 입력")
+    If name <> "" Then Call ApplySellerToResult(name)
+End Sub
