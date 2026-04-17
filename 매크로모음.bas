@@ -352,6 +352,58 @@ NextCol:
     wsTarget.Columns("A").AutoFit
     wsTarget.Columns("B:D").AutoFit
 
+    ' ══════════════════════════════════════════
+    ' STEP 4) Outlook 메일 작성 (C2점 위반 정리 표 그림으로 첨부)
+    ' ══════════════════════════════════════════
+    Dim outlookApp  As Object
+    Dim outlookMail As Object
+    Dim insp        As Object
+    Dim wdDoc       As Object
+    Dim wdRange     As Object
+    Dim tableRange  As Range
+    Dim tLastRow2   As Long
+
+    On Error Resume Next
+    Set outlookApp = CreateObject("Outlook.Application")
+    On Error GoTo CleanUp
+
+    If outlookApp Is Nothing Then GoTo CleanUp
+
+    Set outlookMail = outlookApp.CreateItem(0)
+
+    ' 메일 기본 설정
+    With outlookMail
+        .Display
+        .To = "DL-KR-BSRSales-ALL@wilo.com"
+        .Subject = currentDate & " 온라인 모니터링 파일"
+    End With
+
+    ' 인사말 + 본문 HTML
+    Dim bodyHTML As String
+    bodyHTML = "<p>업무에 노고가 많으십니다.<br>" & _
+               "BSR 남우재 프로입니다.<br><br>" & _
+               Format(Now, "yyyy년 mm월 dd일") & " 온라인 모니터링 결과를 공유드립니다.<br>" & _
+               "금일자 권장가 위반 현황은 아래 표를 참고해 주시기 바랍니다.<br><br></p>"
+    outlookMail.HTMLBody = bodyHTML & outlookMail.HTMLBody
+
+    ' C2점 권장가 위반 정리 표를 그림으로 복사 → 메일 본문에 붙여넣기
+    tLastRow2 = wsTarget.Cells(wsTarget.Rows.Count, 1).End(xlUp).row
+    If tLastRow2 >= 2 Then
+        Set tableRange = wsTarget.Range("A1:D" & tLastRow2)
+        tableRange.CopyPicture Appearance:=xlScreen, Format:=xlPicture
+
+        Set insp   = outlookMail.GetInspector
+        Set wdDoc  = insp.WordEditor
+        Set wdRange = wdDoc.Content
+        wdRange.Collapse Direction:=0  ' wdCollapseEnd
+        wdRange.Paste
+    End If
+
+    ' 맺음말
+    Set wdRange = wdDoc.Content
+    wdRange.Collapse Direction:=0
+    wdRange.InsertAfter vbCrLf & vbCrLf & "감사합니다."
+
 CleanUp:
     Application.ScreenUpdating = True
 End Sub
@@ -438,12 +490,15 @@ Sub RegisterShortcuts()
     Application.OnKey "^+e", "Result_3"
     Application.OnKey "^+r", "Result_4"
     Application.OnKey "^+t", "Result_Custom"
+    ' 선택 범위 초기화 (Ctrl+D)
+    Application.OnKey "^d", "ClearSelection"
     MsgBox "단축키 등록 완료!" & vbCrLf & vbCrLf & _
            "Ctrl+Shift+Q : 오아시스 펌프" & vbCrLf & _
            "Ctrl+Shift+W : pump-damoa" & vbCrLf & _
            "Ctrl+Shift+E : 펌프샵" & vbCrLf & _
            "Ctrl+Shift+R : 윈디샵" & vbCrLf & _
-           "Ctrl+Shift+T : 직접 입력", vbInformation, "단축키 등록"
+           "Ctrl+Shift+T : 직접 입력" & vbCrLf & _
+           "Ctrl+D       : 선택 범위 초기화", vbInformation, "단축키 등록"
 End Sub
 
 ' =============================================
@@ -599,4 +654,19 @@ Sub Result_Custom()
     Dim name As String
     name = InputBox("이동할 판매처명 입력:", "직접 입력")
     If name <> "" Then Call ApplySellerToResult(name)
+End Sub
+
+' =============================================
+' 6. 선택 범위 내용·색상 초기화 (Ctrl+D)
+' =============================================
+Sub ClearSelection()
+    Dim cell As Range
+    If Selection Is Nothing Then Exit Sub
+    For Each cell In Selection
+        cell.ClearContents
+        cell.Interior.ColorIndex = xlNone
+        cell.Font.Color = RGB(0, 0, 0)
+        cell.Font.Underline = xlUnderlineStyleNone
+        If cell.Hyperlinks.Count > 0 Then cell.Hyperlinks.Delete
+    Next cell
 End Sub
