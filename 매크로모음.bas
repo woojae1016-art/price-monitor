@@ -283,7 +283,7 @@ NextCol:
     ' 요약 대리점 노란색
     dealerList = Array( _
         "서우기업", "LG윌로펌프", "경동기전", "고강C&P", "광진종합상사", "굿펌프", "나인티에스", "대림상사", _
-        "대영상사", "대풍상사", "미라클YT펌프", "삼흥E&P", "서울종합펌프", "서울펌프랜드", "세광사", _
+        "대영상사", "대풍상사", "미라클YT펌프", "삼흥E&P", "pump-damoa", "서울펌프랜드", "세광사", _
         "수중모터주식회사", "시대상사", "에스에이치테크", "엘지산업", "윌로종합상사 영천", "이조", _
         "이피컴퍼니", "전진", "주식회사 리텍솔루션", "주식회사 세종종합상사", "카토건설중기", "투빈", _
         "퍼맥스", "펌스", "하경상사", "국제티에스", "광명상사", "희성산업", "펌프랜드", "대산종합상사" _
@@ -354,7 +354,6 @@ NextCol:
 
 CleanUp:
     Application.ScreenUpdating = True
-    MsgBox "완료! C2점 권장가 위반 정리 시트가 생성되었습니다.", vbInformation
 End Sub
 
 ' =============================================
@@ -415,185 +414,43 @@ Sub ApplyBordersOnly()
 
 Done:
     Application.ScreenUpdating = True
-    MsgBox "테두리 적용 완료!", vbInformation
 End Sub
 
 ' =============================================
 ' 4. 쿠팡 판매자 빠른 입력 - 공통 처리 함수
 '    Ctrl+Shift+1 → 오아시스 펌프
-'    Ctrl+Shift+2 → 서울종합펌프
+'    Ctrl+Shift+2 → pump-damoa
 '    Ctrl+Shift+3 → 펌프샵
 ' =============================================
-Sub ApplySeller(sellerName As String)
-    Dim wsResult  As Worksheet
-    Dim wsMk      As Worksheet
-    Dim curRow    As Long
-    Dim modelName As String
-    Dim lprice    As Variant
-    Dim msrp      As Variant
-    Dim dc        As Variant
-    Dim link      As String
 
-    If ActiveSheet.Name <> "오픈마켓확인" Then
-        MsgBox "오픈마켓확인 시트에서 실행해주세요.", vbExclamation
-        Exit Sub
-    End If
 
-    Set wsMk = ActiveSheet
-    curRow   = ActiveCell.Row
-    If curRow <= 1 Then Exit Sub
-
-    modelName = Trim(wsMk.Cells(curRow, 2).Value)
-    lprice    = wsMk.Cells(curRow, 4).Value
-    msrp      = wsMk.Cells(curRow, 5).Value
-    dc        = wsMk.Cells(curRow, 6).Value
-    link      = wsMk.Cells(curRow, 8).Value
-
-    If modelName = "" Then Exit Sub
-
-    ' 오픈마켓확인 G열에 판매자 입력 + 연초록 배경
-    wsMk.Cells(curRow, 7).Value = sellerName
-    wsMk.Cells(curRow, 7).Interior.Color = RGB(204, 255, 204)
-
-    ' 통합결과 시트에서 모델행 + 판매처열 찾기
-    On Error Resume Next
-    Set wsResult = ThisWorkbook.Sheets("통합결과")
-    On Error GoTo 0
-    If wsResult Is Nothing Then Exit Sub
-
-    Dim modelRow  As Long
-    Dim sellerCol As Long
-    Dim sr As Long, sc As Long
-
-    modelRow  = 0
-    sellerCol = 0
-
-    For sr = 3 To wsResult.Cells(wsResult.Rows.Count, 1).End(xlUp).Row
-        If Trim(wsResult.Cells(sr, 1).Value) = modelName Then
-            modelRow = sr
-            Exit For
-        End If
-    Next sr
-
-    For sc = 3 To wsResult.Cells(1, wsResult.Columns.Count).End(xlToLeft).Column
-        If Trim(wsResult.Cells(1, sc).Value) = sellerName Then
-            sellerCol = sc
-            Exit For
-        End If
-    Next sc
-
-    If modelRow = 0 Or sellerCol = 0 Then
-        ' 통합결과에 없어도 오픈마켓확인엔 이미 입력됨 - 다음 행으로 이동
-        GoTo MoveNext
-    End If
-
-    ' 기존 값보다 낮을 때만 덮어쓰기
-    Dim existVal As Variant
-    existVal = wsResult.Cells(modelRow, sellerCol).Value
-    If IsNumeric(existVal) And existVal > 0 Then
-        If IsNumeric(lprice) And lprice >= existVal Then GoTo MoveNext
-    End If
-
-    ' 최저가 + 하이퍼링크
-    With wsResult.Cells(modelRow, sellerCol)
-        .Value = lprice
-        .NumberFormat = "#,##0"
-        .HorizontalAlignment = xlRight
-        .Borders.LineStyle = xlContinuous
-        .Borders.Weight = xlThin
-        If link <> "" Then
-            wsResult.Hyperlinks.Add Anchor:=wsResult.Cells(modelRow, sellerCol), _
-                Address:=link, TextToDisplay:=Format(lprice, "#,##0")
-            .Font.Color = RGB(5, 99, 193)
-            .Font.Underline = xlUnderlineStyleSingle
-        End If
-    End With
-
-    ' 인터넷 권장가
-    With wsResult.Cells(modelRow + 1, sellerCol)
-        .Value = msrp
-        .NumberFormat = "#,##0"
-        .HorizontalAlignment = xlRight
-        .Borders.LineStyle = xlContinuous
-        .Borders.Weight = xlThin
-    End With
-
-    ' DC율 + 색상
-    With wsResult.Cells(modelRow + 2, sellerCol)
-        If IsNumeric(dc) Then
-            Dim dcPct As Double
-            dcPct = IIf(dc > 1, dc / 100, dc)
-            .Value = dcPct
-            .NumberFormat = "0.0%"
-            Select Case dcPct * 100
-                Case Is >= 25: .Interior.Color = RGB(255, 1, 1)
-                Case Is >= 22: .Interior.Color = RGB(255, 150, 150)
-                Case Is >= 20: .Interior.Color = RGB(255, 150, 1)
-                Case Is >= 17: .Interior.Color = RGB(255, 255, 1)
-            End Select
-        End If
-        .HorizontalAlignment = xlCenter
-        .Borders.LineStyle = xlContinuous
-        .Borders.Weight = xlThin
-    End With
-
-MoveNext:
-    ' 다음 행으로 자동 이동
-    Dim lastRow As Long
-    lastRow = wsMk.Cells(wsMk.Rows.Count, 1).End(xlUp).Row
-    If curRow + 1 <= lastRow Then
-        wsMk.Cells(curRow + 1, 1).Select
-    End If
-End Sub
-
-' Ctrl+Shift+1 → 오아시스 펌프
-Sub Seller_1()
-    Call ApplySeller("오아시스 펌프")
-End Sub
-
-' Ctrl+Shift+2 → 서울종합펌프
-Sub Seller_2()
-    Call ApplySeller("서울종합펌프")
-End Sub
-
-' Ctrl+Shift+3 → 펌프샵
-Sub Seller_3()
-    Call ApplySeller("펌프샵")
-End Sub
-
-' Ctrl+Shift+4 → 윈디샵
-Sub Seller_4()
-    Call ApplySeller("윈디샵")
-End Sub
-
-' Ctrl+Shift+5 → 직접 입력
-Sub Seller_Custom()
-    Dim name As String
-    name = InputBox("판매자명 입력:", "직접 입력")
-    If name <> "" Then Call ApplySeller(name)
-End Sub
-
-' ── 단축키 등록 (파일 열릴 때 자동 실행) ──────
+' ── 단축키 등록 ────────────────────────────────
+' Auto_Open: 파일 열릴 때 자동 실행 (xlsm 전용)
+' 단축키가 작동하지 않으면 Alt+F8 → RegisterShortcuts 수동 실행
 Sub Auto_Open()
-    ' 오픈마켓확인 시트 단축키 (Ctrl+Shift+1~5)
-    Application.OnKey "^+1", "Seller_1"
-    Application.OnKey "^+2", "Seller_2"
-    Application.OnKey "^+3", "Seller_3"
-    Application.OnKey "^+4", "Seller_4"
-    Application.OnKey "^+5", "Seller_Custom"
+    Call RegisterShortcuts
+End Sub
+
+Sub RegisterShortcuts()
     ' 통합결과 시트 단축키 (Ctrl+Shift+Q~T)
     Application.OnKey "^+q", "Result_1"
     Application.OnKey "^+w", "Result_2"
     Application.OnKey "^+e", "Result_3"
     Application.OnKey "^+r", "Result_4"
     Application.OnKey "^+t", "Result_Custom"
+    MsgBox "단축키 등록 완료!" & vbCrLf & vbCrLf & _
+           "Ctrl+Shift+Q : 오아시스 펌프" & vbCrLf & _
+           "Ctrl+Shift+W : pump-damoa" & vbCrLf & _
+           "Ctrl+Shift+E : 펌프샵" & vbCrLf & _
+           "Ctrl+Shift+R : 윈디샵" & vbCrLf & _
+           "Ctrl+Shift+T : 직접 입력", vbInformation, "단축키 등록"
 End Sub
 
 ' =============================================
 ' 5. 통합결과 시트에서 선택 범위의 판매자 열 변경
 '    선택한 셀들의 판매처(1행)를 지정 판매자로 일괄 변경
 '    Ctrl+Shift+Q → 오아시스 펌프
-'    Ctrl+Shift+W → 서울종합펌프
+'    Ctrl+Shift+W → pump-damoa
 '    Ctrl+Shift+E → 펌프샵
 '    Ctrl+Shift+R → 윈디샵
 '    Ctrl+Shift+T → 직접 입력
@@ -730,14 +587,12 @@ NextCell:
     Next cell
 
     If movedCount > 0 Then
-        MsgBox movedCount & "개 항목을 '" & sellerName & "' 열로 이동했습니다.", vbInformation
-    Else
-        MsgBox "이동할 항목이 없습니다." & vbCrLf & "(이미 같은 열이거나 기존값이 더 낮음)", vbInformation
-    End If
+        Else
+        End If
 End Sub
 
 Sub Result_1(): Call ApplySellerToResult("오아시스 펌프"): End Sub
-Sub Result_2(): Call ApplySellerToResult("서울종합펌프"): End Sub
+Sub Result_2(): Call ApplySellerToResult("pump-damoa"): End Sub
 Sub Result_3(): Call ApplySellerToResult("펌프샵"): End Sub
 Sub Result_4(): Call ApplySellerToResult("윈디샵"): End Sub
 Sub Result_Custom()
